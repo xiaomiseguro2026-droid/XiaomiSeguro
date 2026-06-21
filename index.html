@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xiaomi Seguro — Desbloqueo de Bootloader HyperOS</title>
+<meta name="description" content="Desbloqueo de bootloader Xiaomi en HyperOS 1, 2 y 2.2. Método probado, casos reales, revisión previa obligatoria.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --black: #0b0c0a;
+    --black-2: #131410;
+    --panel: #171813;
+    --olive: #5d6b3f;
+    --olive-light: #8a9a5e;
+    --olive-dim: #3c4729;
+    --gold: #c9a961;
+    --gold-bright: #e8caa0;
+    --gold-dim: #8a7340;
+    --bone: #ece6d6;
+    --bone-dim: #a8a395;
+    --line: rgba(201,169,97,0.18);
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html{ scroll-behavior:smooth; }
+
+  body{
+    background: var(--black);
+    color: var(--bone);
+    font-family:'Inter', sans-serif;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* textured noise background, same feel as the logo plate */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(ellipse 1200px 800px at 50% -10%, rgba(93,107,63,0.08), transparent 60%),
+      radial-gradient(ellipse 900px 700px at 100% 100%, rgba(201,169,97,0.05), transparent 60%);
+    pointer-events:none;
+    z-index:0;
+  }
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    pointer-events:none;
+    z-index:1;
+    mix-blend-mode:overlay;
+  }
+
+  .wrap{ position:relative; z-index:2; max-width:1100px; margin:0 auto; padding:0 28px; }
+
+  h1,h2,h3, .serif{ font-family:'Cormorant Garamond', serif; }
+
+  /* engraved text effect, echoing the logo plate */
+  .engraved{
+    color: var(--olive-light);
+    text-shadow:
+      0 1px 0 rgba(0,0,0,0.9),
+      0 -1px 0 rgba(138,154,94,0.25),
+      0 2px 6px rgba(0,0,0,0.6);
+  }
+  .engraved-gold{
+    color: var(--gold);
+    text-shadow:
+      0 1px 0 rgba(0,0,0,0.9),
+      0 -1px 0 rgba(232,202,160,0.3),
+      0 2px 8px rgba(0,0,0,0.6);
+  }
+
+  /* ---------- NAV ---------- */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    backdrop-filter: blur(14px);
+    background: rgba(11,12,10,0.72);
+    border-bottom:1px solid var(--line);
+  }
+  nav .wrap{
+    display:flex; align-items:center; justify-content:space-between;
+    padding-top:16px; padding-bottom:16px;
+  }
+  .brand{ display:flex; align-items:center; gap:12px; }
+  .brand-mark{ width:34px; height:34px; }
+  .brand-name{ font-family:'Cormorant Garamond', serif; font-weight:600; font-size:1.25rem; letter-spacing:0.02em; color:var(--bone); }
+  .brand-name span{ color: var(--olive-light); display:block; font-size:0.62rem; letter-spacing:0.28em; font-family:'Inter',sans-serif; text-transform:uppercase; margin-top:-2px; }
+  .nav-cta{
+    font-size:0.82rem; font-weight:600; letter-spacing:0.02em;
+    color: var(--black); background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    padding:10px 20px; border-radius:3px; text-decoration:none;
+    box-shadow: 0 2px 12px rgba(201,169,97,0.25);
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .nav-cta:hover{ transform: translateY(-1px); box-shadow: 0 4px 18px rgba(201,169,97,0.4); }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center;
+    padding-top:120px; padding-bottom:80px;
+    position:relative;
+  }
+
+  .seal{
+    width:128px; height:148px;
+    margin: 0 auto 36px;
+    perspective: 800px;
+  }
+  .seal-inner{
+    width:100%; height:100%;
+    transition: transform .15s ease-out;
+    transform-style:preserve-3d;
+    filter: drop-shadow(0 12px 28px rgba(0,0,0,0.55));
+  }
+
+  .eyebrow{
+    font-size:0.74rem; letter-spacing:0.32em; text-transform:uppercase;
+    color: var(--gold-dim); font-weight:600; margin-bottom:22px;
+  }
+
+  .hero h1{
+    font-size: clamp(2.6rem, 6vw, 4.6rem);
+    font-weight:600;
+    line-height:1.08;
+    max-width:780px;
+    margin:0 auto 22px;
+  }
+  .hero h1 em{ font-style:normal; }
+
+  .hero-sub{
+    color: var(--bone-dim);
+    font-size:1.08rem;
+    max-width:540px;
+    margin: 0 auto 40px;
+    line-height:1.6;
+  }
+
+  .hero-actions{ display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+
+  .btn{
+    display:inline-flex; align-items:center; gap:10px;
+    padding:15px 30px; border-radius:3px;
+    font-size:0.95rem; font-weight:600; text-decoration:none;
+    letter-spacing:0.01em;
+    transition: transform .25s ease, box-shadow .25s ease, background .25s ease;
+  }
+  .btn-primary{
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold) 60%, var(--gold-dim));
+    color: #14150f;
+    box-shadow: 0 6px 24px rgba(201,169,97,0.28), inset 0 1px 0 rgba(255,255,255,0.35);
+  }
+  .btn-primary:hover{ transform: translateY(-2px); box-shadow: 0 10px 30px rgba(201,169,97,0.4), inset 0 1px 0 rgba(255,255,255,0.4); }
+  .btn-ghost{
+    border:1px solid var(--line); color: var(--bone-dim); background: rgba(255,255,255,0.02);
+  }
+  .btn-ghost:hover{ border-color: var(--gold-dim); color: var(--bone); }
+
+  .scroll-cue{
+    position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+    width:1px; height:54px;
+    background: linear-gradient(180deg, transparent, var(--gold-dim), transparent);
+    opacity:0.6;
+  }
+  .scroll-cue::after{
+    content:""; position:absolute; top:0; left:-2px; width:5px; height:5px; border-radius:50%;
+    background: var(--gold); animation: drip 2.2s ease-in-out infinite;
+  }
+  @keyframes drip{ 0%{ top:0; opacity:0; } 20%{ opacity:1; } 100%{ top:54px; opacity:0; } }
+
+  /* ---------- SECTION SHARED ---------- */
+  section{ position:relative; padding:96px 0; }
+  .section-head{ text-align:center; max-width:620px; margin:0 auto 56px; }
+  .section-head .eyebrow{ margin-bottom:14px; }
+  .section-head h2{ font-size: clamp(1.9rem, 3.6vw, 2.6rem); font-weight:600; }
+  .section-head p{ color: var(--bone-dim); margin-top:14px; font-size:1rem; line-height:1.6; }
+
+  .divider{
+    width:60px; height:1px; margin:0 auto;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+  }
+
+  /* ---------- PLATE PANEL (signature reusable card) ---------- */
+  .plate{
+    background: linear-gradient(160deg, var(--panel), var(--black-2));
+    border:1px solid var(--line);
+    border-radius:6px;
+    position:relative;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 20px 40px -20px rgba(0,0,0,0.6);
+  }
+  .plate::before{
+    content:"";
+    position:absolute; inset:0; border-radius:6px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.4);
+    pointer-events:none;
+  }
+
+  /* ---------- WHAT IT IS / SCOPE ---------- */
+  .scope-grid{
+    display:grid; grid-template-columns: 1fr 1fr; gap:1px;
+    background: var(--line);
+    border:1px solid var(--line);
+    border-radius:6px; overflow:hidden;
+  }
+  .scope-col{ background: var(--black-2); padding:38px 34px; }
+  .scope-col h3{
+    font-size:0.78rem; letter-spacing:0.18em; text-transform:uppercase;
+    font-family:'Inter',sans-serif; font-weight:700; margin-bottom:22px;
+  }
+  .scope-col.yes h3{ color: var(--olive-light); }
+  .scope-col.no h3{ color: #a9745c; }
+  .scope-list{ list-style:none; display:flex; flex-direction:column; gap:14px; }
+  .scope-list li{ display:flex; gap:12px; font-size:0.95rem; color: var(--bone-dim); line-height:1.5; }
+  .scope-list .mark{ flex:none; width:18px; height:18px; margin-top:2px; }
+  .scope-col.yes .mark{ color: var(--olive-light); }
+  .scope-col.no .mark{ color: #a9745c; }
+
+  /* ---------- PROCESS ---------- */
+  .process{ display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+  .step{ padding:34px 28px; text-align:left; }
+  .step .num{
+    font-family:'Cormorant Garamond', serif; font-size:2.6rem; font-weight:600;
+    color:transparent; -webkit-text-stroke: 1px var(--gold-dim);
+    line-height:1; margin-bottom:18px; display:block;
+  }
+  .step h3{ font-size:1.15rem; font-weight:600; margin-bottom:10px; color: var(--bone); font-family:'Inter',sans-serif; }
+  .step p{ color: var(--bone-dim); font-size:0.92rem; line-height:1.6; }
+
+  /* ---------- MODELS / COMPAT STRIP ---------- */
+  .compat-strip{
+    display:flex; align-items:center; justify-content:center; gap:14px;
+    flex-wrap:wrap; margin-top:50px;
+  }
+  .chip{
+    border:1px solid var(--line); border-radius:30px;
+    padding:10px 20px; font-size:0.85rem; color: var(--bone-dim);
+    background: rgba(255,255,255,0.015);
+  }
+  .chip strong{ color: var(--gold); font-weight:600; }
+
+  /* ---------- FINAL CTA ---------- */
+  .final{
+    text-align:center;
+    padding:100px 0 120px;
+  }
+  .final .plate{
+    max-width:680px; margin:0 auto; padding:64px 48px;
+  }
+  .final h2{ font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom:18px; }
+  .final p{ color: var(--bone-dim); max-width:420px; margin:0 auto 36px; line-height:1.6; }
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:40px 0; text-align:center;
+  }
+  footer p{ color: var(--bone-dim); font-size:0.82rem; letter-spacing:0.02em; }
+  footer a{ color: var(--gold-dim); text-decoration:none; }
+  footer a:hover{ color: var(--gold); }
+
+  /* reveal on scroll */
+  .reveal{ opacity:0; transform: translateY(24px); transition: opacity .8s ease, transform .8s ease; }
+  .reveal.in{ opacity:1; transform:none; }
+
+  @media (max-width: 760px){
+    .scope-grid{ grid-template-columns:1fr; }
+    .process{ grid-template-columns:1fr; }
+    .hero{ padding-top:140px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 100 116" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 2L94 20V58C94 86 74 104 50 114C26 104 6 86 6 58V20L50 2Z" fill="#c9a961" stroke="#8a7340" stroke-width="1.5"/>
+        <path d="M50 10L86 25V58C86 81 70 96 50 105C30 96 14 81 14 58V25L50 10Z" fill="#0b0c0a"/>
+        <path d="M38 38H62V46H46V54H58V62H46V78H38V38Z" fill="#c9a961"/>
+        <path d="M62 38L62 78L54 78L54 50L62 38Z" fill="#c9a961" opacity="0.85"/>
+      </svg>
+      <div class="brand-name">Xiaomi Seguro<span>Unbrick · EDL · Bootloader</span></div>
+    </div>
+    <a class="nav-cta" href="https://t.me/Xiaomiseguro" target="_blank" rel="noopener">Escribir por Telegram</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="seal" id="seal">
+      <svg class="seal-inner" id="sealInner" viewBox="0 0 100 116" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M50 2L94 20V58C94 86 74 104 50 114C26 104 6 86 6 58V20L50 2Z" fill="#c9a961" stroke="#e8caa0" stroke-width="1"/>
+        <path d="M50 9L88 24.5V58C88 83 71 99 50 108C29 99 12 83 12 58V24.5L50 9Z" fill="#0b0c0a"/>
+        <path d="M37 36H64V45H48V53H60V62H48V79H37V36Z" fill="#c9a961"/>
+        <path d="M64 36L64 79L52 79L52 47L64 36Z" fill="#e8caa0" opacity="0.9"/>
+      </svg>
+    </div>
+
+    <p class="eyebrow engraved-gold">Servicio técnico especializado</p>
+    <h1 class="engraved">Tu Xiaomi bloqueado<br>tiene solución real</h1>
+    <p class="hero-sub">Desbloqueo de bootloader para HyperOS 1, 2 y 2.2. Método probado, casos documentados, soporte directo conmigo hasta resolver tu caso.</p>
+
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="https://t.me/Xiaomiseguro" target="_blank" rel="noopener">
+        Escribir por Telegram →
+      </a>
+      <a class="btn btn-ghost" href="#proceso">Ver cómo funciona</a>
+    </div>
+  </div>
+  <div class="scroll-cue"></div>
+</header>
+
+<section id="alcance">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow engraved-gold">Alcance del servicio</p>
+      <h2 class="engraved">Claridad antes que nada</h2>
+      <p>Esto evita malentendidos y te ahorra tiempo: revisa si tu caso aplica antes de escribir.</p>
+    </div>
+
+    <div class="scope-grid reveal">
+      <div class="scope-col yes">
+        <h3>Sí cubre</h3>
+        <ul class="scope-list">
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Desbloqueo de bootloader en HyperOS 1, 2 y 2.2</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Gestión correcta de cuenta Mi, región y tiempos de espera</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Checklist previo para evitar errores en fastboot</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Soporte directo por Telegram hasta resolver el caso</li>
+        </ul>
+      </div>
+      <div class="scope-col no">
+        <h3>No cubre</h3>
+        <ul class="scope-list">
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Equipos con hard-brick o daño físico</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Modelos fuera de HyperOS 1 / 2 / 2.2</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Cuentas Mi con menos de 30 días de antigüedad</li>
+          <li><svg class="mark" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Promesas de resultado inmediato sin revisión previa</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="compat-strip reveal">
+      <span class="chip"><strong>HyperOS 1</strong> · soportado</span>
+      <span class="chip"><strong>HyperOS 2</strong> · soportado</span>
+      <span class="chip"><strong>HyperOS 2.2</strong> · soportado</span>
+    </div>
+  </div>
+</section>
+
+<section id="proceso">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <p class="eyebrow engraved-gold">Cómo funciona</p>
+      <h2 class="engraved">Tres pasos, sin vueltas</h2>
+    </div>
+
+    <div class="process">
+      <div class="plate step reveal">
+        <span class="num">01</span>
+        <h3>Escribes por Telegram</h3>
+        <p>Cuentas tu caso: modelo, versión de HyperOS y qué pasó. Sin formularios largos.</p>
+      </div>
+      <div class="plate step reveal">
+        <span class="num">02</span>
+        <h3>Reviso compatibilidad</h3>
+        <p>Confirmo si tu equipo aplica para el método antes de cobrar nada. Si no aplica, te lo digo directo.</p>
+      </div>
+      <div class="plate step reveal">
+        <span class="num">03</span>
+        <h3>Guía + soporte hasta resolver</h3>
+        <p>Recibes el método, archivos verificados y acompañamiento directo conmigo durante todo el proceso.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <div class="wrap">
+    <div class="plate reveal">
+      <p class="eyebrow engraved-gold">Empieza ahora</p>
+      <h2 class="engraved-gold">¿Listo para desbloquear tu Xiaomi?</h2>
+      <p>Escríbeme directo. Reviso tu caso y te digo con honestidad si aplica antes de cualquier pago.</p>
+      <a class="btn btn-primary" href="https://t.me/Xiaomiseguro" target="_blank" rel="noopener">Escribir por Telegram →</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Xiaomi Seguro — Servicio independiente, no afiliado a Xiaomi Corporation.<br>
+    <a href="https://t.me/Xiaomiseguro" target="_blank" rel="noopener">Telegram</a> · <a href="https://www.youtube.com/@XiaomiSeguro" target="_blank" rel="noopener">YouTube</a></p>
+  </div>
+</footer>
+
+<script>
+  // 3D tilt on seal, mouse-follow
+  const seal = document.getElementById('seal');
+  const sealInner = document.getElementById('sealInner');
+  if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+    seal.addEventListener('mousemove', (e) => {
+      const r = seal.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      sealInner.style.transform = `rotateY(${x * 24}deg) rotateX(${-y * 24}deg)`;
+    });
+    seal.addEventListener('mouseleave', () => {
+      sealInner.style.transform = 'rotateY(0deg) rotateX(0deg)';
+    });
+
+    // idle ambient sway when not hovered
+    let t = 0;
+    setInterval(() => {
+      if (!seal.matches(':hover')) {
+        t += 0.02;
+        const ax = Math.sin(t) * 4;
+        const ay = Math.cos(t * 0.8) * 3;
+        sealInner.style.transform = `rotateY(${ax}deg) rotateX(${ay}deg)`;
+      }
+    }, 40);
+  }
+
+  // scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(en => { if (en.isIntersecting) en.target.classList.add('in'); });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+
+</body>
+</html>
